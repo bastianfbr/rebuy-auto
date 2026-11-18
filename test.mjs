@@ -33,7 +33,7 @@ const le = buildListEmbeds(rowsL);
 assert.equal(le.length, 1);
 assert.equal(le[0].fields.length, 2);
 assert.match(le[0].description, /\*\*2\*\* produits/);
-assert.match(le[0].fields[0].value, /<#111> · <t:1795011120:R>/);
+assert.match(le[0].fields[0].value, /<#111> · relevé <t:1795011120:R>/);
 assert.match(le[0].fields[1].value, /Comme neuf\*\* : —/);
 assert.ok(!le[0].fields[1].value.includes('<t:'));
 assert.deepEqual(buildListEmbeds([]), []);

@@ -56,7 +56,7 @@ export function buildListEmbeds(rows) {
   if (!rows.length) return [];
   const fields = rows.slice(0, MAX_FIELDS * MAX_EMBEDS).map((r) => {
     const ts = Math.floor(Date.parse(r.updatedAt) / 1000);
-    const head = `<#${r.channel_id}>${Number.isFinite(ts) ? ` · <t:${ts}:R>` : ''}`;
+    const head = `<#${r.channel_id}>${Number.isFinite(ts) ? ` · relevé <t:${ts}:R>` : ''}`;
     const lines = LIST_GRADES.map(([icon, label, key]) => `${icon} **${label}** : ${r[key] == null ? '—' : fmt(Number(r[key]))}`);
     return { name: cut(`📱 ${r.name}`, 256), value: [head, ...lines].join('\n'), inline: true };
   });
