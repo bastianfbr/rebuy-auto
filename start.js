@@ -1,6 +1,7 @@
 // Point d'entrée Pterodactyl (MAIN_FILE=start.js) : lance n8n, puis le bot si configuré.
 import 'dotenv/config';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 
@@ -11,6 +12,27 @@ mkdirSync(dataDir, { recursive: true });
 // Clé de chiffrement n8n générée une fois et conservée (ne pas la perdre !)
 const keyFile = `${dataDir}/n8n-encryption-key`;
 if (!existsSync(keyFile)) writeFileSync(keyFile, randomBytes(32).toString('hex'), { mode: 0o600 });
+
+// npm 12 bloque les install scripts : si le binaire natif de sqlite3 manque
+// (ex. paquets déjà installés avant l'ajout de allowScripts), on le (re)construit.
+const NATIVE = ['sqlite3', 'isolated-vm', 'msgpackr-extract'];
+function sqliteOk() {
+  try {
+    const db = new (createRequire(`${root}/package.json`)('sqlite3').Database)(':memory:');
+    db.close();
+    return true;
+  } catch {
+    return false;
+  }
+}
+if (!sqliteOk()) {
+  console.log('[start] binaire sqlite3 absent : npm rebuild des modules natifs…');
+  spawnSync('npm', ['rebuild', ...NATIVE, `--allow-scripts=${NATIVE.join(',')}`, '--foreground-scripts'], {
+    stdio: 'inherit',
+    cwd: root,
+  });
+  if (!sqliteOk()) console.error('[start] sqlite3 toujours inutilisable après rebuild (voir logs ci-dessus)');
+}
 
 const port = process.env.SERVER_PORT || process.env.N8N_PORT || '5678';
 const env = {
