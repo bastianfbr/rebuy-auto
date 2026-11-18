@@ -5,6 +5,11 @@ const { DISCORD_TOKEN, N8N_WEBHOOK_SECRET } = process.env;
 const N8N_WEBHOOK_BASE = process.env.N8N_WEBHOOK_BASE || `http://localhost:${process.env.SERVER_PORT || 5678}/webhook`;
 const REBUY_RE = /^https:\/\/www\.rebuy\.(fr|de|com|nl|it|es|at|be)\/vendre\/[^\s]+$/i;
 
+// /actualiser relève tous les produits : une seule exécution à la fois, avec un délai entre deux lancements.
+const REFRESH_COOLDOWN_MS = 60_000;
+let refreshing = false;
+let lastRefresh = 0;
+
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
 
 async function callN8n(path, body) {
@@ -12,6 +17,7 @@ async function callN8n(path, body) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Secret': N8N_WEBHOOK_SECRET },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(14 * 60_000), // la réponse différée Discord expire au bout de 15 min
   });
   if (!res.ok) throw new Error(`n8n ${res.status}`);
   return res.json();
@@ -33,6 +39,20 @@ client.on('interactionCreate', async (i) => {
       // Embeds si n8n en fournit ; sinon repli sur le texte (rétrocompatible).
       if (Array.isArray(r.embeds) && r.embeds.length) return void i.editReply({ content: '', embeds: r.embeds });
       return void i.editReply(r.message ?? 'Aucun produit suivi.');
+    }
+    if (i.commandName === 'actualiser') {
+      if (refreshing) return void i.editReply('⏳ Une actualisation est déjà en cours.');
+      const wait = lastRefresh + REFRESH_COOLDOWN_MS - Date.now();
+      if (wait > 0) return void i.editReply(`⏳ Réessaie dans ${Math.ceil(wait / 1000)} s.`);
+      refreshing = true;
+      try {
+        const r = await callN8n('rebuy-refresh', base);
+        if (Array.isArray(r.embeds) && r.embeds.length) return void i.editReply({ content: '', embeds: r.embeds });
+        return void i.editReply(r.message ?? '✅ Actualisation terminée.');
+      } finally {
+        refreshing = false;
+        lastRefresh = Date.now();
+      }
     }
     if (i.commandName === 'arreter') {
       const r = await callN8n('rebuy-remove', base);
