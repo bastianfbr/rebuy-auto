@@ -14,18 +14,31 @@ export async function fetchRebuy(url) {
   return parseRebuy(await res.text());
 }
 
+function decodeEntities(s) {
+  return s
+    .replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCharCode(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(Number(d)));
+}
+
 export function parseRebuy(html) {
   const m = html.match(/<script id="ry-inject"[^>]*>([\s\S]*?)<\/script>/);
   if (!m) throw new Error('ry-inject introuvable');
   const raw = m[1];
-  const grab = (re) => { const x = raw.match(re); return x ? x[1] : null; };
+  const grab = (re, s = raw) => { const x = s.match(re); return x ? x[1] : null; };
   const prices = {};
   for (const g of Object.keys(GRADES).map((k) => k.toLowerCase())) {
     const v = grab(new RegExp(`"purchase_${g}_price":(\\d+)`));
     if (v !== null) prices[g.toUpperCase()] = Number(v) / 100; // centimes -> €
   }
   if (!Object.keys(prices).length) throw new Error('aucun prix de reprise trouvé');
-  return { id: grab(/"id":(27\d+|\d{6,9}),"category_id"/), prices };
+  const title = grab(/property="og:title" content="([^"]*)"/, html);
+  const name = title
+    ? decodeEntities(title).replace(/^Reprise de votre\s+/i, '').replace(/\s+[–-]\s+rebuy$/i, '').trim()
+    : null;
+  const image = grab(/property="og:image" content="([^"]*)"/, html);
+  return { id: grab(/"id":(\d{6,10}),"category_id"/), name, image: image ? decodeEntities(image) : null, prices };
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
