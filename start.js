@@ -47,7 +47,7 @@ const env = {
   N8N_WEBHOOK_BASE: process.env.N8N_WEBHOOK_BASE || `http://localhost:${port}/webhook`,
 };
 if (process.env.N8N_PUBLIC_URL) {
-  env.WEBHOOK_URL = process.env.N8N_PUBLIC_URL;
+  env.N8N_WEBHOOK_URL = process.env.N8N_PUBLIC_URL;
   env.N8N_EDITOR_BASE_URL = process.env.N8N_PUBLIC_URL;
 }
 
