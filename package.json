@@ -17,5 +17,10 @@
   },
   "engines": {
     "node": ">=22.22"
+  },
+  "allowScripts": {
+    "sqlite3": true,
+    "isolated-vm": true,
+    "msgpackr-extract": true
   }
 }
