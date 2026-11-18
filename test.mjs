@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import { buildEmbed, diffPrices, hasChange } from './src/embed.js';
+const o = { A0: 513.9, A1: 500, A2: 469.7 }, n = { A0: 521.9, A1: 493.43, A2: 469.7 };
+const rows = diffPrices(o, n);
+assert.equal(hasChange(rows), true);
+assert.equal(hasChange(diffPrices(n, n)), false);
+const e = buildEmbed({ name: 'Test', url: 'https://x', prices: n, oldPrices: o });
+assert.equal(e.color, 0xf0a232);
+console.log(e.description);
+console.log(buildEmbed({ name: 'Test', url: 'https://x', prices: n }).description);
