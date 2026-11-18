@@ -5,6 +5,12 @@
   "type": "module",
   "scripts": {
     "spike": "node src/rebuy.js",
-    "test": "node test.mjs"
+    "test": "node test.mjs",
+    "deploy": "node deploy-commands.js",
+    "bot": "node src/index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.16.0",
+    "dotenv": "^16.4.0"
   }
 }
