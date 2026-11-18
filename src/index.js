@@ -30,6 +30,8 @@ client.on('interactionCreate', async (i) => {
     }
     if (i.commandName === 'liste') {
       const r = await callN8n('rebuy-list', base);
+      // Embeds si n8n en fournit ; sinon repli sur le texte (rétrocompatible).
+      if (Array.isArray(r.embeds) && r.embeds.length) return void i.editReply({ content: '', embeds: r.embeds });
       return void i.editReply(r.message ?? 'Aucun produit suivi.');
     }
     if (i.commandName === 'arreter') {
