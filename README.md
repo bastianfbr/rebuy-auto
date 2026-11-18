@@ -27,6 +27,24 @@ Bot Discord + n8n qui suit les **prix de reprise Rebuy** et poste un embed réca
 
 `data/` (base n8n + clé de chiffrement) et `.env` sont ignorés par git : ne jamais les perdre.
 
+## Workflows n8n
+
+Quatre workflows, générés depuis `n8n/workflows.mjs` (code SDK n8n, créés via le MCP) :
+
+| Workflow | Déclencheur | Rôle |
+|---|---|---|
+| Rebuy – Relevé quotidien | cron 8h (Europe/Paris) | relève les produits actifs, poste l'embed si un prix change, alerte après 3 échecs |
+| Rebuy – Ajouter un produit | webhook `POST /webhook/rebuy-add` | lit la page, crée le channel, poste le récap initial, enregistre |
+| Rebuy – Lister les produits | webhook `POST /webhook/rebuy-list` | répond avec la liste |
+| Rebuy – Arrêter le suivi | webhook `POST /webhook/rebuy-remove` | désactive le suivi du channel |
+
+Données : Data Tables n8n `rebuy_products` et `rebuy_price_history`.
+
+Mise en service :
+1. Credential **Discord Bot API** dans n8n (token du bot, Application ID, Public Key).
+2. Credential **Header Auth** nommé `Rebuy Webhook Secret` : *Name* `X-Secret`, *Value* = la même valeur que `N8N_WEBHOOK_SECRET` du `.env`. À sélectionner dans le nœud webhook des trois workflows d'API.
+3. Publier les quatre workflows.
+
 ## Développement
 
 ```bash
