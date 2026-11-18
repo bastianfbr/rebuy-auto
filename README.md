@@ -23,7 +23,7 @@ Bot Discord + n8n qui suit les **prix de reprise Rebuy** et poste un embed réca
 2. Créer un fichier `.env` à la racine du serveur (voir `.env.example`). Il n'est jamais écrasé par `git pull`.
 3. Démarrer : le premier lancement installe n8n (plusieurs minutes).
 4. Ouvrir `http://IP:PORT`, créer le compte propriétaire n8n tout de suite.
-5. Déployer les slash commands une fois : `npm run deploy`.
+5. Les slash commands sont enregistrées automatiquement à chaque démarrage (`deploy-commands.js`) si `DISCORD_CLIENT_ID` et `DISCORD_GUILD_ID` sont définis.
 
 `data/` (base n8n + clé de chiffrement) et `.env` sont ignorés par git : ne jamais les perdre.
 

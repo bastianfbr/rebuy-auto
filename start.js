@@ -71,6 +71,10 @@ console.log(`[start] n8n sur le port ${port}`);
 run('n8n', process.execPath, [`${root}/node_modules/n8n/bin/n8n`, 'start']);
 
 if (process.env.DISCORD_TOKEN) {
+  if (process.env.DISCORD_CLIENT_ID && process.env.DISCORD_GUILD_ID) {
+    console.log('[start] enregistrement des slash commands');
+    spawnSync(process.execPath, [`${root}/deploy-commands.js`], { stdio: 'inherit', cwd: root, env });
+  }
   console.log('[start] lancement du bot Discord');
   run('bot', process.execPath, [`${root}/src/index.js`]);
 } else {
