@@ -125,7 +125,7 @@ export function liste() {
 const recu = ${webhook('Reçoit /liste', 'rebuy-list')};
 const produits = node({ type: 'n8n-nodes-base.dataTable', version: 1.1, config: { name: 'Produits actifs', position: [480, 300], alwaysOutputData: true, parameters: { resource: 'row', operation: 'get', dataTableId: ${tbl(TABLE_PRODUITS)}, matchType: 'allConditions', filters: { conditions: [{ keyName: 'active', condition: 'eq', keyValue: 'true' }] }, returnAll: true } }, output: [{ id: 1, url: 'https://www.rebuy.fr/vendre/x', name: 'Produit', channel_id: '1', last_a0: 1, last_a1: 1, last_a2: 1 }] });
 const message = node({ type: 'n8n-nodes-base.code', version: 2, config: { name: 'Construire la liste', position: [720, 300], parameters: { mode: 'runOnceForAllItems', language: 'javaScript', jsCode: ${s(MESSAGE_LISTE)} } }, output: [{ message: 'liste' }] });
-const repondre = ${respond('Répondre : liste', "expr('{{ JSON.stringify({ message: $json.message }) }}')", '[960, 300]')};
+const repondre = ${respond('Répondre : liste', "expr('{{ JSON.stringify({ message: $json.message, embeds: $json.embeds }) }}')", '[960, 300]')};
 
 export default workflow('rebuy-liste', 'Rebuy – Lister les produits')
   .add(recu)

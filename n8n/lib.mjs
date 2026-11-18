@@ -65,9 +65,8 @@ try {
   return { json: { ok: false, error: String(e.message || e) } };
 }`;
 
-/** Message de la commande /liste. */
-export const MESSAGE_LISTE = `const rows = $input.all().map((i) => i.json).filter((r) => r && r.url);
-if (!rows.length) return [{ json: { message: 'Aucun produit suivi pour le moment. Utilise /suivre avec un lien Rebuy.' } }];
-const eur = (n) => (n == null ? '—' : Number(n).toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' }));
-const lines = rows.map((r) => '• <#' + r.channel_id + '> **' + r.name + '** — neuf ' + eur(r.last_a0) + ' · comme neuf ' + eur(r.last_a1) + ' · très bon ' + eur(r.last_a2));
-return [{ json: { message: '**' + rows.length + ' produit(s) suivi(s)**\\n' + lines.join('\\n') } }];`;
+/** Réponse de la commande /liste : embeds + texte de repli (anciens bots). */
+export const MESSAGE_LISTE = `${LIB}
+const rows = $input.all().map((i) => i.json).filter((r) => r && r.url);
+if (!rows.length) return [{ json: { message: 'Aucun produit suivi pour le moment. Utilise /suivre avec un lien Rebuy.', embeds: [] } }];
+return [{ json: { message: '**' + rows.length + ' produit(s) suivi(s)**', embeds: buildListEmbeds(rows) } }];`;
