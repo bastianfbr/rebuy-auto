@@ -13,7 +13,14 @@ function strip(src) {
     .replace(/^export /gm, '');
 }
 
-export const LIB = `${strip(read('src/rebuy.js'))}\n${strip(read('src/embed.js'))}`;
+// Le nœud Discord de n8n attend thumbnail/image sous forme d'URL (string) et non d'objet { url }.
+const N8N_EMBED = `
+function n8nEmbed(e) {
+  if (e.thumbnail && e.thumbnail.url) e.thumbnail = e.thumbnail.url;
+  return e;
+}`;
+
+export const LIB = `${strip(read('src/rebuy.js'))}\n${strip(read('src/embed.js'))}${N8N_EMBED}`;
 
 export const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/124 Safari/537.36';
 
@@ -30,7 +37,7 @@ try {
   const p = parseRebuy(html);
   const prev = prod.last_a0 != null ? { A0: prod.last_a0, A1: prod.last_a1, A2: prod.last_a2 } : null;
   const rows = diffPrices(prev, p.prices);
-  const embed = buildEmbed({ name: prod.name || p.name, url: prod.url, prices: p.prices, oldPrices: prev, image: p.image });
+  const embed = n8nEmbed(buildEmbed({ name: prod.name || p.name, url: prod.url, prices: p.prices, oldPrices: prev, image: p.image }));
   return { json: { ...base, ok: true, changed: hasChange(rows), a0: p.prices.A0, a1: p.prices.A1, a2: p.prices.A2, embed } };
 } catch (e) {
   return { json: { ...base, ok: false, error: String(e.message || e), fail_next: base.fail_count + 1 } };
@@ -50,7 +57,7 @@ try {
   if (!html) throw new Error(($json.error && $json.error.message) || 'page vide');
   const p = parseRebuy(html);
   const name = p.name || 'Produit Rebuy ' + p.id;
-  const embed = buildEmbed({ name, url: req.url, prices: p.prices, image: p.image });
+  const embed = n8nEmbed(buildEmbed({ name, url: req.url, prices: p.prices, image: p.image }));
   const channelName = name.toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '')
     .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 90) || 'produit-rebuy';
   return { json: { ok: true, name, product_id: String(p.id || ''), image: p.image, a0: p.prices.A0, a1: p.prices.A1, a2: p.prices.A2, embed, channelName, url: req.url, guildId: req.guildId, userId: req.userId } };
