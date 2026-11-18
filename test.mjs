@@ -22,3 +22,23 @@ assert.equal(p.image, 'https://img/x.jpg?a=1&b=2');
 assert.throws(() => parseRebuy('<html></html>'), /ry-inject/);
 assert.equal(buildEmbed({ name: 'T', url: 'u', prices: n, image: 'https://img/x.jpg' }).thumbnail.url, 'https://img/x.jpg');
 console.log('✔ parseRebuy + thumbnail');
+
+// --- buildListEmbeds ---
+import { buildListEmbeds } from './src/embed.js';
+const rowsL = [
+  { name: 'Samsung Galaxy Tab S12 Plus', channel_id: '111', last_a0: 521.9, last_a1: 493.43, last_a2: 469.7, updatedAt: '2026-11-18T14:12:00.000Z' },
+  { name: 'Google Pixel 11 Pro', channel_id: '222', last_a0: 606.22, last_a1: null, last_a2: 560.84, updatedAt: 'n/a' },
+];
+const le = buildListEmbeds(rowsL);
+assert.equal(le.length, 1);
+assert.equal(le[0].fields.length, 2);
+assert.match(le[0].description, /\*\*2\*\* produits/);
+assert.match(le[0].fields[0].value, /<#111> · <t:1795011120:R>/);
+assert.match(le[0].fields[1].value, /Comme neuf\*\* : —/);
+assert.ok(!le[0].fields[1].value.includes('<t:'));
+assert.deepEqual(buildListEmbeds([]), []);
+const many = buildListEmbeds(Array.from({ length: 30 }, (_, k) => ({ name: 'P' + k, channel_id: String(k), last_a0: 1, last_a1: 1, last_a2: 1 })));
+assert.equal(many.length, 2);
+assert.equal(many[0].fields.length, 25);
+assert.ok(many[1].footer && !many[0].footer);
+console.log('✔ buildListEmbeds');

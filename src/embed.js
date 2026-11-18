@@ -41,3 +41,35 @@ export function buildEmbed({ name, url, prices, oldPrices = null, image = null, 
   if (image) embed.thumbnail = { url: image };
   return embed;
 }
+
+const LIST_GRADES = [['🆕', 'Neuf', 'last_a0'], ['✨', 'Comme neuf', 'last_a1'], ['👍', 'Très bon', 'last_a2']];
+const MAX_FIELDS = 25; // limite Discord par embed
+const MAX_EMBEDS = 10; // limite Discord par message
+
+const cut = (s, n) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+
+/**
+ * Embeds de la commande /liste : un champ par produit (3 colonnes), découpé par blocs de 25.
+ * rows = lignes de la table rebuy_products (name, channel_id, last_a0..2, updatedAt).
+ */
+export function buildListEmbeds(rows) {
+  if (!rows.length) return [];
+  const fields = rows.slice(0, MAX_FIELDS * MAX_EMBEDS).map((r) => {
+    const ts = Math.floor(Date.parse(r.updatedAt) / 1000);
+    const head = `<#${r.channel_id}>${Number.isFinite(ts) ? ` · <t:${ts}:R>` : ''}`;
+    const lines = LIST_GRADES.map(([icon, label, key]) => `${icon} **${label}** : ${r[key] == null ? '—' : fmt(Number(r[key]))}`);
+    return { name: cut(`📱 ${r.name}`, 256), value: [head, ...lines].join('\n'), inline: true };
+  });
+  const embeds = [];
+  for (let i = 0; i < fields.length; i += MAX_FIELDS) {
+    const first = i === 0;
+    embeds.push({
+      title: first ? '📋 Produits suivis' : '📋 Produits suivis (suite)',
+      ...(first ? { description: `**${rows.length}** produit${rows.length > 1 ? 's' : ''} · relevé chaque jour à 8h` } : {}),
+      color: 0x5865f2,
+      fields: fields.slice(i, i + MAX_FIELDS),
+    });
+  }
+  embeds[embeds.length - 1].footer = { text: 'Prix de reprise Rebuy · /arreter dans un channel pour stopper le suivi' };
+  return embeds;
+}
