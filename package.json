@@ -1,0 +1,10 @@
+{
+  "name": "rebuy-auto",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "spike": "node src/rebuy.js",
+    "test": "node test.mjs"
+  }
+}
