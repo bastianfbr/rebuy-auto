@@ -70,3 +70,8 @@ export const MESSAGE_LISTE = `${LIB}
 const rows = $input.all().map((i) => i.json).filter((r) => r && r.url);
 if (!rows.length) return [{ json: { message: 'Aucun produit suivi pour le moment. Utilise /suivre avec un lien Rebuy.', embeds: [] } }];
 return [{ json: { message: '**' + rows.length + ' produit(s) suivi(s)**', embeds: buildListEmbeds(rows) } }];`;
+
+/** Résumé de la commande /actualiser : agrège les résultats de chaque produit. */
+export const RESUME_ACTUALISATION = `${LIB}
+const results = $input.all().map((i) => i.json);
+return [{ json: { message: '✅ Actualisation terminée (' + results.length + ' produit(s))', embeds: [buildRefreshEmbed(results)] } }];`;

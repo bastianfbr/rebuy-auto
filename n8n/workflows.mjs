@@ -1,5 +1,5 @@
 // Génère le code SDK n8n des workflows. Usage : node n8n/workflows.mjs <nom>
-import { ANALYSE_QUOTIDIEN, VALIDER_AJOUT, ANALYSE_AJOUT, MESSAGE_LISTE, UA } from './lib.mjs';
+import { ANALYSE_QUOTIDIEN, VALIDER_AJOUT, ANALYSE_AJOUT, MESSAGE_LISTE, RESUME_ACTUALISATION, UA } from './lib.mjs';
 
 export const TABLE_PRODUITS = '<ID_TABLE_PRODUITS>';
 export const TABLE_HISTORIQUE = '<ID_TABLE_HISTORIQUE>';
@@ -34,12 +34,13 @@ const respond = (name, bodyExpr, pos) => `node({
   output: [{ message: 'ok' }]
 })`;
 
-const webhook = (name, path) => `trigger({
+const SECRET_CRED = { id: '<ID_CREDENTIAL_SECRET>', name: 'Rebuy Webhook Secret' };
+const webhook = (name, path, existingCred = null) => `trigger({
   type: 'n8n-nodes-base.webhook', version: 2.1,
   config: {
     name: ${s(name)}, position: [240, 300],
     parameters: { httpMethod: 'POST', path: '${path}', authentication: 'headerAuth', responseMode: 'responseNode' },
-    credentials: { httpHeaderAuth: newCredential('Rebuy Webhook Secret') }
+    credentials: { httpHeaderAuth: ${existingCred ? JSON.stringify(existingCred) : "newCredential('Rebuy Webhook Secret')"} }
   },
   output: [{ headers: {}, body: { guildId: '1', channelId: '2', userId: '3', url: 'https://www.rebuy.fr/vendre/x' } }]
 })`;
@@ -52,14 +53,10 @@ const boolIf = (name, left, pos) => `ifElse({
     combinator: 'and' } } }
 })`;
 
-export function quotidien() {
-  return `${IMPORT}
-const declencheur = trigger({ type: 'n8n-nodes-base.scheduleTrigger', version: 1.3, config: { name: 'Chaque jour à 8h', position: [240, 300], parameters: { rule: { interval: [{ field: 'cronExpression', expression: '0 8 * * *' }] } } }, output: [{}] });
-const produits = node({ type: 'n8n-nodes-base.dataTable', version: 1.1, config: { name: 'Produits actifs', position: [480, 300], parameters: { resource: 'row', operation: 'get', dataTableId: ${tbl(TABLE_PRODUITS)}, matchType: 'allConditions', filters: { conditions: [{ keyName: 'active', condition: 'eq', keyValue: 'true' }] }, returnAll: true } }, output: [{ id: 1, url: 'https://www.rebuy.fr/vendre/x', name: 'Produit', channel_id: '1', last_a0: 100, last_a1: 90, last_a2: 80, fail_count: 0 }] });
-const boucle = splitInBatches({ version: 3, config: { name: 'Boucle produits', position: [720, 300], parameters: { batchSize: 1 } } });
-const pause = node({ type: 'n8n-nodes-base.wait', version: 1.1, config: { name: 'Pause 3 s', position: [960, 300], parameters: { resume: 'timeInterval', amount: 3, unit: 'seconds' } }, output: [{}] });
+// Nœuds partagés par le relevé quotidien et /actualiser (pause, lecture, analyse, notification, mémorisation).
+const RELEVE_NOEUDS = `const pause = node({ type: 'n8n-nodes-base.wait', version: 1.1, config: { name: 'Pause 3 s', position: [960, 300], parameters: { resume: 'timeInterval', amount: 3, unit: 'seconds' } }, output: [{}] });
 const page = ${httpPage('Lire la page Rebuy', "expr(\"{{ $('Boucle produits').item.json.url }}\")", '[1200, 300]')};
-const analyse = node({ type: 'n8n-nodes-base.code', version: 2, config: { name: 'Analyser la page', position: [1440, 300], parameters: { mode: 'runOnceForEachItem', language: 'javaScript', jsCode: ${s(ANALYSE_QUOTIDIEN)} } }, output: [{ ok: true, changed: true, row_id: 1, product_id: '1', channel_id: '1', fail_count: 0, fail_next: 1, error: 'x', a0: 1, a1: 1, a2: 1, embed: { title: 't', description: 'd', color: 1 } }] });
+const analyse = node({ type: 'n8n-nodes-base.code', version: 2, config: { name: 'Analyser la page', position: [1440, 300], parameters: { mode: 'runOnceForEachItem', language: 'javaScript', jsCode: ${s(ANALYSE_QUOTIDIEN)} } }, output: [{ ok: true, changed: true, row_id: 1, product_id: '1', name: 'Produit', channel_id: '1', fail_count: 0, fail_next: 1, error: 'x', a0: 1, a1: 1, a2: 1, embed: { title: 't', description: 'd', color: 1 } }] });
 const pageLue = ${boolIf('Page lue ?', '{{ $json.ok }}', '[1680, 300]')};
 const aChange = ${boolIf('Prix modifié ?', '{{ $json.changed }}', '[1920, 200]')};
 const notifier = node({ type: 'n8n-nodes-base.discord', version: 2, config: { name: 'Poster le récap', position: [2160, 100], credentials: ${discordCred}, parameters: { resource: 'message', operation: 'send', authentication: 'botToken', guildId: { __rl: true, mode: 'id', value: '${'<ID_SERVEUR_DISCORD>'}' }, sendTo: 'channel', channelId: { __rl: true, mode: 'id', value: expr('{{ $json.channel_id }}') }, content: '', embeds: { values: [{ inputMethod: 'json', json: expr('{{ JSON.stringify($json.embed) }}') }] } } }, output: [{ id: '1' }] });
@@ -68,7 +65,14 @@ const historique = node({ type: 'n8n-nodes-base.dataTable', version: 1.1, config
 const resetEchecs = node({ type: 'n8n-nodes-base.dataTable', version: 1.1, config: { name: 'Remettre les échecs à zéro', position: [2160, 300], parameters: { resource: 'row', operation: 'update', dataTableId: ${tbl(TABLE_PRODUITS)}, matchType: 'allConditions', filters: { conditions: [{ keyName: 'id', condition: 'eq', keyValue: expr('{{ $json.row_id }}') }] }, columns: ${cols('fail_count: 0', [['fail_count', 'number']])} } }, output: [{ id: 1 }] });
 const compterEchec = node({ type: 'n8n-nodes-base.dataTable', version: 1.1, config: { name: 'Compter un échec', position: [1920, 500], parameters: { resource: 'row', operation: 'update', dataTableId: ${tbl(TABLE_PRODUITS)}, matchType: 'allConditions', filters: { conditions: [{ keyName: 'id', condition: 'eq', keyValue: expr("{{ $('Analyser la page').item.json.row_id }}") }] }, columns: ${cols("fail_count: expr(\"{{ $('Analyser la page').item.json.fail_next }}\")", [['fail_count', 'number']])} } }, output: [{ id: 1 }] });
 const troisEchecs = ifElse({ version: 2.3, config: { name: '3 échecs d’affilée ?', position: [2160, 500], parameters: { conditions: { options: { caseSensitive: true, leftValue: '', typeValidation: 'loose', version: 2 }, conditions: [{ leftValue: expr("{{ $('Analyser la page').item.json.fail_next }}"), rightValue: 3, operator: { type: 'number', operation: 'equals' } }], combinator: 'and' } } } });
-const alerte = node({ type: 'n8n-nodes-base.discord', version: 2, config: { name: 'Alerter dans le channel', position: [2400, 450], credentials: ${discordCred}, parameters: { resource: 'message', operation: 'send', authentication: 'botToken', guildId: { __rl: true, mode: 'id', value: '<ID_SERVEUR_DISCORD>' }, sendTo: 'channel', channelId: { __rl: true, mode: 'id', value: expr("{{ $('Analyser la page').item.json.channel_id }}") }, content: expr("⚠️ Impossible de lire le prix Rebuy depuis 3 relevés ({{ $('Analyser la page').item.json.error }}). Le suivi continue, vérifie le lien si ça persiste.") } }, output: [{ id: '1' }] });
+const alerte = node({ type: 'n8n-nodes-base.discord', version: 2, config: { name: 'Alerter dans le channel', position: [2400, 450], credentials: ${discordCred}, parameters: { resource: 'message', operation: 'send', authentication: 'botToken', guildId: { __rl: true, mode: 'id', value: '<ID_SERVEUR_DISCORD>' }, sendTo: 'channel', channelId: { __rl: true, mode: 'id', value: expr("{{ $('Analyser la page').item.json.channel_id }}") }, content: expr("⚠️ Impossible de lire le prix Rebuy depuis 3 relevés ({{ $('Analyser la page').item.json.error }}). Le suivi continue, vérifie le lien si ça persiste.") } }, output: [{ id: '1' }] });`;
+
+export function quotidien() {
+  return `${IMPORT}
+const declencheur = trigger({ type: 'n8n-nodes-base.scheduleTrigger', version: 1.3, config: { name: 'Chaque jour à 8h', position: [240, 300], parameters: { rule: { interval: [{ field: 'cronExpression', expression: '0 8 * * *' }] } } }, output: [{}] });
+const produits = node({ type: 'n8n-nodes-base.dataTable', version: 1.1, config: { name: 'Produits actifs', position: [480, 300], parameters: { resource: 'row', operation: 'get', dataTableId: ${tbl(TABLE_PRODUITS)}, matchType: 'allConditions', filters: { conditions: [{ keyName: 'active', condition: 'eq', keyValue: 'true' }] }, returnAll: true } }, output: [{ id: 1, url: 'https://www.rebuy.fr/vendre/x', name: 'Produit', channel_id: '1', last_a0: 100, last_a1: 90, last_a2: 80, fail_count: 0 }] });
+const boucle = splitInBatches({ version: 3, config: { name: 'Boucle produits', position: [720, 300], parameters: { batchSize: 1 } } });
+${RELEVE_NOEUDS}
 
 export default workflow('rebuy-quotidien', 'Rebuy – Relevé quotidien')
   .add(declencheur)
@@ -154,7 +158,41 @@ export default workflow('rebuy-arret', 'Rebuy – Arrêter le suivi')
 `;
 }
 
-const GENERATORS = { quotidien, ajout, liste, retirer };
+export function actualiser() {
+  return `${IMPORT}
+const recu = ${webhook('Reçoit /actualiser', 'rebuy-refresh', SECRET_CRED)};
+const produits = node({ type: 'n8n-nodes-base.dataTable', version: 1.1, config: { name: 'Produits actifs', position: [480, 300], alwaysOutputData: true, parameters: { resource: 'row', operation: 'get', dataTableId: ${tbl(TABLE_PRODUITS)}, matchType: 'allConditions', filters: { conditions: [{ keyName: 'active', condition: 'eq', keyValue: 'true' }] }, returnAll: true } }, output: [{ id: 1, url: 'https://www.rebuy.fr/vendre/x', name: 'Produit', channel_id: '1', last_a0: 100, last_a1: 90, last_a2: 80, fail_count: 0 }] });
+const desProduits = node({ type: 'n8n-nodes-base.if', version: 2.3, config: { name: 'Des produits ?', position: [720, 300], parameters: { conditions: { options: { caseSensitive: true, leftValue: '', typeValidation: 'loose', version: 2 }, conditions: [{ leftValue: expr('{{ $json.id }}'), operator: { type: 'number', operation: 'exists', singleValue: true } }], combinator: 'and' } } }, output: [{ id: 1 }] });
+const repAucun = ${respond('Répondre : aucun produit', msgJson('"ℹ️ Aucun produit suivi pour le moment."'), '[960, 500]')};
+const boucle = splitInBatches({ version: 3, config: { name: 'Boucle produits', position: [960, 200], parameters: { batchSize: 1 } } });
+${RELEVE_NOEUDS}
+const resultat = node({ type: 'n8n-nodes-base.set', version: 3.4, config: { name: 'Résultat du produit', position: [2880, 300], parameters: { mode: 'manual', includeOtherFields: false, assignments: { assignments: [
+  { id: 'r-name', name: 'name', value: expr("{{ $('Analyser la page').item.json.name }}"), type: 'string' },
+  { id: 'r-channel', name: 'channel_id', value: expr("{{ $('Analyser la page').item.json.channel_id }}"), type: 'string' },
+  { id: 'r-status', name: 'status', value: expr("{{ $('Analyser la page').item.json.ok ? ($('Analyser la page').item.json.changed ? 'changed' : 'same') : 'failed' }}"), type: 'string' },
+  { id: 'r-error', name: 'error', value: expr("{{ $('Analyser la page').item.json.error || '' }}"), type: 'string' }
+] } } }, output: [{ name: 'Produit', channel_id: '1', status: 'same', error: '' }] });
+const resume = node({ type: 'n8n-nodes-base.code', version: 2, config: { name: 'Construire le résumé', position: [1200, 100], parameters: { mode: 'runOnceForAllItems', language: 'javaScript', jsCode: ${s(RESUME_ACTUALISATION)} } }, output: [{ message: 'ok', embeds: [{ title: 'Actualisation', description: 'd', color: 1, fields: [] }] }] });
+const repondre = ${respond('Répondre : résumé', "expr('{{ JSON.stringify({ message: $json.message, embeds: $json.embeds }) }}')", '[1440, 100]')};
+
+export default workflow('rebuy-actualiser', 'Rebuy – Actualiser les suivis')
+  .add(recu)
+  .to(produits)
+  .to(desProduits
+    .onTrue(boucle
+      .onEachBatch(pause.to(page.to(analyse.to(pageLue
+        .onTrue(aChange
+          .onTrue(notifier.to(memoriser.to(historique.to(resultat.to(nextBatch(boucle))))))
+          .onFalse(resetEchecs.to(resultat)))
+        .onFalse(compterEchec.to(troisEchecs
+          .onTrue(alerte.to(resultat))
+          .onFalse(resultat)))))))
+      .onDone(resume.to(repondre)))
+    .onFalse(repAucun));
+`;
+}
+
+const GENERATORS = { quotidien, ajout, liste, retirer, actualiser };
 if (import.meta.url === `file://${process.argv[1]}`) {
   const g = GENERATORS[process.argv[2]];
   if (!g) { console.error('workflows disponibles :', Object.keys(GENERATORS).join(', ')); process.exit(1); }
