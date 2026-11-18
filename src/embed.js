@@ -16,7 +16,7 @@ export function diffPrices(oldP, newP) {
 export const hasChange = (rows) => rows.some((r) => r.delta !== 0);
 
 /** Construit un embed Discord (objet JSON prêt pour l'API / n8n). */
-export function buildEmbed({ name, url, prices, oldPrices = null, date = new Date() }) {
+export function buildEmbed({ name, url, prices, oldPrices = null, image = null, date = new Date() }) {
   const rows = diffPrices(oldPrices, prices);
   const up = rows.some((r) => r.delta > 0);
   const down = rows.some((r) => r.delta < 0);
@@ -30,7 +30,7 @@ export function buildEmbed({ name, url, prices, oldPrices = null, date = new Dat
     return `${icon} **${r.label} : ${fmt(r.cur)}** (${sign(r.delta)}${fmt(Math.abs(r.delta))}, ${pct}) — avant : ${fmt(r.prev)}`;
   });
 
-  return {
+  const embed = {
     title: `📱 ${name}`,
     url,
     description: `${oldPrices ? 'Prix de reprise mis à jour' : 'Suivi démarré — prix de reprise actuels'}\n\n${lines.join('\n')}`,
@@ -38,4 +38,6 @@ export function buildEmbed({ name, url, prices, oldPrices = null, date = new Dat
     footer: { text: `Relevé du ${date.toLocaleDateString('fr-FR')}` },
     timestamp: date.toISOString(),
   };
+  if (image) embed.thumbnail = { url: image };
+  return embed;
 }
