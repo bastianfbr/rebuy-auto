@@ -42,34 +42,38 @@ export function buildEmbed({ name, url, prices, oldPrices = null, image = null, 
   return embed;
 }
 
-const LIST_GRADES = [['🆕', 'Neuf', 'last_a0'], ['✨', 'Comme neuf', 'last_a1'], ['👍', 'Très bon', 'last_a2']];
+const LIST_GRADES = [['🆕', 'last_a0'], ['✨', 'last_a1'], ['👍', 'last_a2']];
 const MAX_FIELDS = 25; // limite Discord par embed
-const MAX_EMBEDS = 10; // limite Discord par message
+const MAX_CHARS = 5600; // Discord : 6000 caractères au total par message (marge de sécurité)
 
 const cut = (s, n) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 /**
- * Embeds de la commande /liste : un champ par produit (3 colonnes), découpé par blocs de 25.
+ * Embed de la commande /liste : un champ par produit, trois prix sur une ligne.
  * rows = lignes de la table rebuy_products (name, channel_id, last_a0..2, updatedAt).
+ * Retourne un tableau (vide si aucun produit) pour rester compatible avec l'API.
  */
 export function buildListEmbeds(rows) {
   if (!rows.length) return [];
-  const fields = rows.slice(0, MAX_FIELDS * MAX_EMBEDS).map((r) => {
+  const fields = [];
+  let chars = 400; // titre, description, footer
+  for (const r of rows) {
     const ts = Math.floor(Date.parse(r.updatedAt) / 1000);
     const head = `<#${r.channel_id}>${Number.isFinite(ts) ? ` · relevé <t:${ts}:R>` : ''}`;
-    const lines = LIST_GRADES.map(([icon, label, key]) => `${icon} **${label}** : ${r[key] == null ? '—' : fmt(Number(r[key]))}`);
-    return { name: cut(`📱 ${r.name}`, 256), value: [head, ...lines].join('\n'), inline: true };
-  });
-  const embeds = [];
-  for (let i = 0; i < fields.length; i += MAX_FIELDS) {
-    const first = i === 0;
-    embeds.push({
-      title: first ? '📋 Produits suivis' : '📋 Produits suivis (suite)',
-      ...(first ? { description: `**${rows.length}** produit${rows.length > 1 ? 's' : ''} · relevé chaque jour à 8h` } : {}),
-      color: 0x5865f2,
-      fields: fields.slice(i, i + MAX_FIELDS),
-    });
+    const prices = LIST_GRADES.map(([icon, key]) => `${icon} ${r[key] == null ? '—' : fmt(Number(r[key]))}`).join(' · ');
+    const field = { name: cut(`📱 ${r.name}`, 100), value: `${head}\n${prices}`, inline: false };
+    const size = field.name.length + field.value.length;
+    if (fields.length >= MAX_FIELDS || chars + size > MAX_CHARS) break;
+    fields.push(field);
+    chars += size;
   }
-  embeds[embeds.length - 1].footer = { text: 'Prix de reprise Rebuy · /arreter dans un channel pour stopper le suivi' };
-  return embeds;
+  const hidden = rows.length - fields.length;
+  const n = rows.length;
+  return [{
+    title: '📋 Produits suivis',
+    description: `**${n}** produit${n > 1 ? 's' : ''} · relevé chaque jour à 8h\n🆕 Neuf · ✨ Comme neuf · 👍 Très bon état`,
+    color: 0x5865f2,
+    fields,
+    footer: { text: hidden > 0 ? `… et ${hidden} autre${hidden > 1 ? 's' : ''} non affiché${hidden > 1 ? 's' : ''} · /arreter dans un channel pour stopper le suivi` : '/arreter dans un channel pour stopper le suivi' },
+  }];
 }

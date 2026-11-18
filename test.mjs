@@ -33,12 +33,14 @@ const le = buildListEmbeds(rowsL);
 assert.equal(le.length, 1);
 assert.equal(le[0].fields.length, 2);
 assert.match(le[0].description, /\*\*2\*\* produits/);
-assert.match(le[0].fields[0].value, /<#111> · relevé <t:1795011120:R>/);
-assert.match(le[0].fields[1].value, /Comme neuf\*\* : —/);
+const norm = (x) => x.replace(/[\u00a0\u202f]/g, ' '); // Intl utilise des espaces insécables
+assert.equal(norm(le[0].fields[0].value), '<#111> · relevé <t:1795011120:R>\n🆕 521,90 € · ✨ 493,43 € · 👍 469,70 €');
+assert.match(le[0].fields[1].value, /✨ — · 👍/);
 assert.ok(!le[0].fields[1].value.includes('<t:'));
 assert.deepEqual(buildListEmbeds([]), []);
-const many = buildListEmbeds(Array.from({ length: 30 }, (_, k) => ({ name: 'P' + k, channel_id: String(k), last_a0: 1, last_a1: 1, last_a2: 1 })));
-assert.equal(many.length, 2);
-assert.equal(many[0].fields.length, 25);
-assert.ok(many[1].footer && !many[0].footer);
+// limites Discord : 25 champs, 6000 caractères au total
+const many = buildListEmbeds(Array.from({ length: 40 }, (_, k) => ({ name: 'Produit très long '.repeat(8) + k, channel_id: '123456789012345678', last_a0: 1000.5, last_a1: 900.5, last_a2: 800.5, updatedAt: '2026-11-18T14:12:00.000Z' })))[0];
+const total = JSON.stringify(many).length;
+assert.ok(many.fields.length <= 25 && total < 6000, `embed trop gros : ${many.fields.length} champs, ${total} car.`);
+assert.match(many.footer.text, /non affichés/);
 console.log('✔ buildListEmbeds');
