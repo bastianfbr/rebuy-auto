@@ -15,7 +15,7 @@ flowchart LR
         S["start.js<br/>point d'entrée"]
         B["🤖 Bot discord.js<br/>slash commands"]
         subgraph N8N["⚙️ n8n 2.35"]
-            WH["Webhooks<br/>rebuy-add · rebuy-list · rebuy-remove"]
+            WH["Webhooks<br/>rebuy-add · -list · -refresh · -remove"]
             CRON["⏰ Relevé quotidien<br/>8h Europe/Paris"]
             DT[("🗄️ Data Tables<br/>produits + historique")]
         end
@@ -23,7 +23,7 @@ flowchart LR
 
     R["🛒 rebuy.fr<br/>page produit"]
 
-    U -- "/suivre · /liste · /arreter" --> B
+    U -- "/suivre · /liste · /actualiser · /arreter" --> B
     B -- "POST + en-tête X-Secret" --> WH
     WH <--> DT
     CRON <--> DT
@@ -66,6 +66,41 @@ sequenceDiagram
         end
     end
     B-->>U: réponse éphémère
+```
+
+## `/actualiser` : relevé immédiat
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as Utilisateur
+    participant B as Bot discord.js
+    participant W as n8n · rebuy-refresh
+    participant T as Data Table rebuy_products
+    participant R as rebuy.fr
+    participant D as API Discord
+
+    U->>B: /actualiser
+    alt déjà en cours ou < 60 s depuis le dernier lancement
+        B-->>U: « ⏳ Réessaie dans … s »
+    else lancement accepté
+        B->>W: POST + X-Secret
+        W->>T: produits actifs
+        alt aucun produit
+            W-->>B: « ℹ️ Aucun produit suivi »
+        else au moins un produit
+            loop pour chaque produit
+                W->>R: GET la page (pause de 3 s)
+                R-->>W: prix A0 · A1 · A2
+                opt prix modifié
+                    W->>D: embed récap dans le channel du produit
+                    W->>T: nouveaux prix + historique
+                end
+            end
+            W-->>B: embed de résumé (modifiés · inchangés · échecs)
+        end
+        B-->>U: résumé éphémère
+    end
 ```
 
 ## Relevé quotidien

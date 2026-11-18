@@ -21,6 +21,7 @@
 |---|---|
 | `/suivre lien:<url rebuy.fr/vendre/…>` | crée le channel du produit et démarre le suivi |
 | `/liste` | liste les produits suivis avec leurs derniers prix |
+| `/actualiser` | relève tout de suite tous les produits suivis et affiche un résumé (limité à un lancement par minute) |
 | `/arreter` | arrête le suivi (à lancer dans le channel du produit) |
 
 États suivis : **A0** neuf (emballage d'origine) · **A1** comme neuf · **A2** très bon état.
@@ -62,7 +63,7 @@ Le bot ne fait que recevoir les slash commands (n8n ne sait pas les recevoir) ; 
 4. **Credentials n8n** :
    - *Discord Bot API* (token, Application ID, Public Key) ;
    - *Header Auth* nommé `Rebuy Webhook Secret` : *Name* `X-Secret`, *Value* = `N8N_WEBHOOK_SECRET`.
-5. **Workflows** : créer les 4 workflows depuis [n8n/workflows.mjs](n8n/workflows.mjs) (via le MCP n8n), sélectionner le credential *Header Auth* dans les 3 nœuds webhook, puis **publier** les 4.
+5. **Workflows** : créer les 5 workflows depuis [n8n/workflows.mjs](n8n/workflows.mjs) (via le MCP n8n), sélectionner le credential *Header Auth* dans les nœuds webhook, puis **publier** les workflows.
 6. **Redémarrer** : les slash commands sont enregistrées automatiquement, le bot se connecte.
 
 Détails, variables et dépannage : **[docs/exploitation.md](docs/exploitation.md)**.
@@ -74,6 +75,7 @@ Détails, variables et dépannage : **[docs/exploitation.md](docs/exploitation.m
 | Rebuy – Relevé quotidien | cron 8h (Europe/Paris) | relève les produits actifs, poste l'embed si un prix change, alerte après 3 échecs |
 | Rebuy – Ajouter un produit | `POST /webhook/rebuy-add` | lit la page, crée le channel, poste le récap initial, enregistre |
 | Rebuy – Lister les produits | `POST /webhook/rebuy-list` | répond avec la liste |
+| Rebuy – Actualiser les suivis | `POST /webhook/rebuy-refresh` | relève tout de suite tous les produits, poste les changements, renvoie un résumé |
 | Rebuy – Arrêter le suivi | `POST /webhook/rebuy-remove` | désactive le suivi du channel |
 
 Données dans deux Data Tables n8n : `rebuy_products` et `rebuy_price_history`.
@@ -90,7 +92,7 @@ Données dans deux Data Tables n8n : `rebuy_products` et `rebuy_price_history`.
 │   └── embed.js          comparaison des relevés et construction de l'embed
 ├── deploy-commands.js    enregistre les slash commands auprès de Discord
 ├── n8n/
-│   ├── workflows.mjs     génère le code SDK des 4 workflows
+│   ├── workflows.mjs     génère le code SDK des 5 workflows
 │   └── lib.mjs           code des nœuds Code, construit depuis src/
 ├── docs/                 architecture (Mermaid) et exploitation
 ├── assets/               logo du bot (SVG + PNG)

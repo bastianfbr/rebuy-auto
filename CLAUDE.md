@@ -8,7 +8,7 @@ Bot Discord + n8n qui suit les prix de reprise Rebuy (A0 neuf emballé, A1 comme
 npm install
 npm test                          # node test.mjs : diff, embed, parseRebuy (fixture synthétique)
 npm run spike -- "<lien rebuy>"   # lit un vrai lien : nom, image, prix A0-A2
-node n8n/workflows.mjs <nom>      # quotidien | ajout | liste | retirer : affiche le code SDK n8n
+node n8n/workflows.mjs <nom>      # quotidien | ajout | liste | retirer | actualiser : affiche le code SDK n8n
 node --check start.js             # vérification de syntaxe rapide
 ```
 
@@ -19,9 +19,9 @@ Pas de linter ni de build. Toujours lancer `npm test` après avoir touché `src/
 - `start.js` : point d'entrée Pterodactyl (`MAIN_FILE`). Lance n8n, reconstruit `sqlite3` si besoin, enregistre les slash commands, lance le bot si `DISCORD_TOKEN` existe.
 - `src/index.js` : bot discord.js, **uniquement** réception des slash commands → webhooks n8n (`X-Secret`). Pas de logique métier.
 - `src/rebuy.js` : lit les prix dans le JSON embarqué `<script id="ry-inject">` (`purchase_a0_price`… en centimes), nom/image via les balises `og:`.
-- `src/embed.js` : `diffPrices`, `hasChange`, `buildEmbed` (couleur selon le mouvement, 📈 📉 ➖).
+- `src/embed.js` : `diffPrices`, `hasChange`, `buildEmbed` (couleur selon le mouvement, 📈 📉 ➖), `buildListEmbeds` (/liste), `buildRefreshEmbed` (/actualiser). Respecter les limites Discord : 25 champs, 6000 caractères par message.
 - `n8n/lib.mjs` : fabrique le code JavaScript des nœuds Code **en inlinant `src/rebuy.js` + `src/embed.js`** (le sandbox n8n n'a pas d'import). Source unique de vérité : ne pas dupliquer cette logique à la main dans n8n.
-- `n8n/workflows.mjs` : génère le code SDK des 4 workflows.
+- `n8n/workflows.mjs` : génère le code SDK des 5 workflows (quotidien, ajout, liste, retirer, actualiser). Le relevé (`RELEVE_NOEUDS`) est partagé entre `quotidien` et `actualiser`.
 
 ## Règles et pièges (appris en production)
 
@@ -30,6 +30,7 @@ Pas de linter ni de build. Toujours lancer `npm test` après avoir touché `src/
 - Le prix de reprise vient de la page HTML (aucune API Rebuy) : si la structure change, `parseRebuy` lève une erreur ; le workflow alerte après 3 échecs.
 - **Nœud Discord de n8n** : `thumbnail`/`image` doivent être des **URL (string)**, pas `{ url }` → `n8nEmbed()` dans `n8n/lib.mjs`.
 - **Ne pas mettre `executeOnce`** sur un nœud Code en mode `runOnceForAllItems` (il ne recevrait que le 1er item : bug `/liste`).
+- Un workflow à webhook `responseNode` doit **toujours** répondre, y compris quand la liste est vide (la boucle ne s'exécute pas sur 0 item) : prévoir une branche explicite (voir « Des produits ? » dans `actualiser`).
 - Le sandbox du nœud Code n'a pas de réseau : les requêtes passent par le nœud HTTP Request.
 - Data Tables n8n : colonnes `number`/`string`/`boolean`/`date` ; pas d'outil MCP pour supprimer des lignes (utiliser un workflow temporaire avec `deleteRows`, puis l'archiver).
 
