@@ -43,7 +43,6 @@ const env = {
   N8N_SECURE_COOKIE: process.env.N8N_SECURE_COOKIE ?? 'false', // http sans certificat
   N8N_DIAGNOSTICS_ENABLED: 'false',
   N8N_PERSONALIZATION_ENABLED: 'false',
-  N8N_RUNNERS_ENABLED: 'true',
   GENERIC_TIMEZONE: process.env.GENERIC_TIMEZONE || 'Europe/Paris',
   N8N_WEBHOOK_BASE: process.env.N8N_WEBHOOK_BASE || `http://localhost:${port}/webhook`,
 };
