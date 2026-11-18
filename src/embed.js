@@ -77,3 +77,38 @@ export function buildListEmbeds(rows) {
     footer: { text: hidden > 0 ? `… et ${hidden} autre${hidden > 1 ? 's' : ''} non affiché${hidden > 1 ? 's' : ''} · /arreter dans un channel pour stopper le suivi` : '/arreter dans un channel pour stopper le suivi' },
   }];
 }
+
+const FIELD_MAX = 1024; // limite Discord par valeur de champ
+
+/**
+ * Embed de la commande /actualiser : résumé d'un relevé manuel.
+ * results = [{ name, channel_id, status: 'changed' | 'same' | 'failed', error }]
+ */
+export function buildRefreshEmbed(results) {
+  const by = (status) => results.filter((r) => r.status === status);
+  const changed = by('changed');
+  const same = by('same');
+  const failed = by('failed');
+  const list = (rows, line) => {
+    let out = '';
+    let hidden = rows.length;
+    for (const r of rows) {
+      const l = `${line(r)}\n`;
+      if (out.length + l.length > FIELD_MAX - 30) break;
+      out += l;
+      hidden -= 1;
+    }
+    return (hidden > 0 ? `${out}… et ${hidden} autre${hidden > 1 ? 's' : ''}` : out).trim();
+  };
+  const fields = [];
+  if (changed.length) fields.push({ name: `📈 Prix modifiés (${changed.length})`, value: list(changed, (r) => `• <#${r.channel_id}> ${cut(r.name, 60)}`) });
+  if (same.length) fields.push({ name: `➖ Inchangés (${same.length})`, value: list(same, (r) => `• ${cut(r.name, 60)}`) });
+  if (failed.length) fields.push({ name: `⚠️ Lecture impossible (${failed.length})`, value: list(failed, (r) => `• <#${r.channel_id}> ${cut(r.error || 'erreur inconnue', 80)}`) });
+  const n = results.length;
+  return {
+    title: '🔄 Actualisation terminée',
+    description: `**${n}** produit${n > 1 ? 's' : ''} relevé${n > 1 ? 's' : ''}${changed.length ? ' · les changements sont postés dans leurs channels' : ''}`,
+    color: failed.length ? 0xf0a232 : changed.length ? 0x2ecc71 : 0x5865f2,
+    fields,
+  };
+}

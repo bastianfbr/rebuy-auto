@@ -44,3 +44,23 @@ const total = JSON.stringify(many).length;
 assert.ok(many.fields.length <= 25 && total < 6000, `embed trop gros : ${many.fields.length} champs, ${total} car.`);
 assert.match(many.footer.text, /non affichés/);
 console.log('✔ buildListEmbeds');
+
+// --- buildRefreshEmbed ---
+import { buildRefreshEmbed } from './src/embed.js';
+const rr = buildRefreshEmbed([
+  { name: 'Galaxy Tab', channel_id: '1', status: 'changed' },
+  { name: 'Pixel', channel_id: '2', status: 'same' },
+  { name: 'iPhone', channel_id: '3', status: 'same' },
+  { name: 'Xiaomi', channel_id: '4', status: 'failed', error: 'HTTP 403' },
+]);
+assert.match(rr.description, /\*\*4\*\* produits relevés/);
+assert.equal(rr.fields.length, 3);
+assert.equal(rr.fields[0].name, '📈 Prix modifiés (1)');
+assert.equal(rr.fields[0].value, '• <#1> Galaxy Tab');
+assert.equal(rr.fields[1].value, '• Pixel\n• iPhone');
+assert.match(rr.fields[2].value, /HTTP 403/);
+assert.equal(rr.color, 0xf0a232);
+assert.equal(buildRefreshEmbed([{ name: 'A', channel_id: '1', status: 'same' }]).color, 0x5865f2);
+const big = buildRefreshEmbed(Array.from({ length: 80 }, (_, k) => ({ name: 'Produit numéro ' + k, channel_id: '123456789012345678', status: 'changed' })));
+assert.ok(big.fields[0].value.length <= 1024 && /… et \d+ autres/.test(big.fields[0].value));
+console.log('✔ buildRefreshEmbed');
