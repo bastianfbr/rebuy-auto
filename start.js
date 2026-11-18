@@ -27,7 +27,7 @@ function sqliteOk() {
 }
 if (!sqliteOk()) {
   console.log('[start] binaire sqlite3 absent : npm rebuild des modules natifs…');
-  spawnSync('npm', ['rebuild', ...NATIVE, `--allow-scripts=${NATIVE.join(',')}`, '--foreground-scripts'], {
+  spawnSync('npm', ['rebuild', ...NATIVE, '--foreground-scripts'], {
     stdio: 'inherit',
     cwd: root,
   });
