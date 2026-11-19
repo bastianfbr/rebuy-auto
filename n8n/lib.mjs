@@ -86,3 +86,12 @@ return [{ json: { category: a.category, parentId: cat ? String(cat.id) : null, n
 export const RESOUDRE_CATEGORIE = `const c = $('Choisir la catégorie').first().json;
 const cree = c.needsCreate && $input.first().json.id ? String($input.first().json.id) : null;
 return [{ json: { parentId: c.parentId || cree } }];`;
+
+/** Calcule l'ordre alphabétique des salons de la catégorie (nouveau salon inclus) pour le PATCH des positions. */
+export const ORDRE_ALPHA = `const parent = $('Résoudre la catégorie').first().json.parentId;
+const neuf = $input.first().json;
+const freres = $('Lister les salons').all().map((i) => i.json)
+  .filter((c) => c && c.id && c.type === 0 && c.parent_id === parent && c.id !== neuf.id);
+const tous = [...freres, { id: neuf.id, name: neuf.name }];
+tous.sort((a, b) => String(a.name).localeCompare(String(b.name), 'fr', { sensitivity: 'base', numeric: true }));
+return [{ json: { payload: parent ? tous.map((c, i) => ({ id: c.id, position: i })) : [] } }];`;
