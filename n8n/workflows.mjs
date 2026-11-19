@@ -1,9 +1,17 @@
 // Génère le code SDK n8n des workflows. Usage : node n8n/workflows.mjs <nom>
 import { ANALYSE_QUOTIDIEN, VALIDER_AJOUT, ANALYSE_AJOUT, MESSAGE_LISTE, RESUME_ACTUALISATION, UA } from './lib.mjs';
 
-export const TABLE_PRODUITS = '<ID_TABLE_PRODUITS>';
-export const TABLE_HISTORIQUE = '<ID_TABLE_HISTORIQUE>';
-const DISCORD_CRED = '<ID_CREDENTIAL_DISCORD>';
+// Identifiants propres à ton instance : jamais en dur, lus dans l'environnement.
+// Usage : node --env-file=.env n8n/workflows.mjs <nom>  (voir .env.example)
+const requis = (nom) => {
+  const v = process.env[nom];
+  if (!v) { console.error(`Variable d'environnement manquante : ${nom} (voir .env.example)`); process.exit(1); }
+  return v;
+};
+export const TABLE_PRODUITS = requis('N8N_TABLE_PRODUITS');
+export const TABLE_HISTORIQUE = requis('N8N_TABLE_HISTORIQUE');
+const DISCORD_CRED = requis('N8N_DISCORD_CRED_ID');
+const GUILD = requis('DISCORD_GUILD_ID');
 
 const IMPORT = "import { workflow, node, trigger, ifElse, splitInBatches, nextBatch, newCredential, expr, nodeJson } from '@n8n/workflow-sdk';";
 const s = (v) => JSON.stringify(v);
@@ -34,8 +42,9 @@ const respond = (name, bodyExpr, pos) => `node({
   output: [{ message: 'ok' }]
 })`;
 
-const SECRET_CRED = { id: '<ID_CREDENTIAL_SECRET>', name: 'Rebuy Webhook Secret' };
-const webhook = (name, path, existingCred = null) => `trigger({
+// Optionnel : si absent, n8n propose de créer le credential « Rebuy Webhook Secret » (newCredential).
+const SECRET_CRED = process.env.N8N_SECRET_CRED_ID ? { id: process.env.N8N_SECRET_CRED_ID, name: 'Rebuy Webhook Secret' } : null;
+const webhook = (name, path, existingCred = SECRET_CRED) => `trigger({
   type: 'n8n-nodes-base.webhook', version: 2.1,
   config: {
     name: ${s(name)}, position: [240, 300],
@@ -59,13 +68,13 @@ const page = ${httpPage('Lire la page Rebuy', "expr(\"{{ $('Boucle produits').it
 const analyse = node({ type: 'n8n-nodes-base.code', version: 2, config: { name: 'Analyser la page', position: [1440, 300], parameters: { mode: 'runOnceForEachItem', language: 'javaScript', jsCode: ${s(ANALYSE_QUOTIDIEN)} } }, output: [{ ok: true, changed: true, row_id: 1, product_id: '1', name: 'Produit', channel_id: '1', fail_count: 0, fail_next: 1, error: 'x', a0: 1, a1: 1, a2: 1, embed: { title: 't', description: 'd', color: 1 } }] });
 const pageLue = ${boolIf('Page lue ?', '{{ $json.ok }}', '[1680, 300]')};
 const aChange = ${boolIf('Prix modifié ?', '{{ $json.changed }}', '[1920, 200]')};
-const notifier = node({ type: 'n8n-nodes-base.discord', version: 2, config: { name: 'Poster le récap', position: [2160, 100], credentials: ${discordCred}, parameters: { resource: 'message', operation: 'send', authentication: 'botToken', guildId: { __rl: true, mode: 'id', value: '${'<ID_SERVEUR_DISCORD>'}' }, sendTo: 'channel', channelId: { __rl: true, mode: 'id', value: expr('{{ $json.channel_id }}') }, content: '', embeds: { values: [{ inputMethod: 'json', json: expr('{{ JSON.stringify($json.embed) }}') }] } } }, output: [{ id: '1' }] });
+const notifier = node({ type: 'n8n-nodes-base.discord', version: 2, config: { name: 'Poster le récap', position: [2160, 100], credentials: ${discordCred}, parameters: { resource: 'message', operation: 'send', authentication: 'botToken', guildId: { __rl: true, mode: 'id', value: '${GUILD}' }, sendTo: 'channel', channelId: { __rl: true, mode: 'id', value: expr('{{ $json.channel_id }}') }, content: '', embeds: { values: [{ inputMethod: 'json', json: expr('{{ JSON.stringify($json.embed) }}') }] } } }, output: [{ id: '1' }] });
 const memoriser = node({ type: 'n8n-nodes-base.dataTable', version: 1.1, config: { name: 'Mémoriser les prix', position: [2400, 100], parameters: { resource: 'row', operation: 'update', dataTableId: ${tbl(TABLE_PRODUITS)}, matchType: 'allConditions', filters: { conditions: [{ keyName: 'id', condition: 'eq', keyValue: expr("{{ $('Analyser la page').item.json.row_id }}") }] }, columns: ${cols("last_a0: expr(\"{{ $('Analyser la page').item.json.a0 }}\"), last_a1: expr(\"{{ $('Analyser la page').item.json.a1 }}\"), last_a2: expr(\"{{ $('Analyser la page').item.json.a2 }}\"), fail_count: 0", PRICE_COLS)} } }, output: [{ id: 1 }] });
 const historique = node({ type: 'n8n-nodes-base.dataTable', version: 1.1, config: { name: 'Ajouter à l’historique', position: [2640, 100], parameters: { resource: 'row', operation: 'insert', dataTableId: ${tbl(TABLE_HISTORIQUE)}, columns: ${cols("product_id: expr(\"{{ $('Analyser la page').item.json.product_id }}\"), a0: expr(\"{{ $('Analyser la page').item.json.a0 }}\"), a1: expr(\"{{ $('Analyser la page').item.json.a1 }}\"), a2: expr(\"{{ $('Analyser la page').item.json.a2 }}\")", HIST_COLS)} } }, output: [{ id: 1 }] });
 const resetEchecs = node({ type: 'n8n-nodes-base.dataTable', version: 1.1, config: { name: 'Remettre les échecs à zéro', position: [2160, 300], parameters: { resource: 'row', operation: 'update', dataTableId: ${tbl(TABLE_PRODUITS)}, matchType: 'allConditions', filters: { conditions: [{ keyName: 'id', condition: 'eq', keyValue: expr('{{ $json.row_id }}') }] }, columns: ${cols('fail_count: 0', [['fail_count', 'number']])} } }, output: [{ id: 1 }] });
 const compterEchec = node({ type: 'n8n-nodes-base.dataTable', version: 1.1, config: { name: 'Compter un échec', position: [1920, 500], parameters: { resource: 'row', operation: 'update', dataTableId: ${tbl(TABLE_PRODUITS)}, matchType: 'allConditions', filters: { conditions: [{ keyName: 'id', condition: 'eq', keyValue: expr("{{ $('Analyser la page').item.json.row_id }}") }] }, columns: ${cols("fail_count: expr(\"{{ $('Analyser la page').item.json.fail_next }}\")", [['fail_count', 'number']])} } }, output: [{ id: 1 }] });
 const troisEchecs = ifElse({ version: 2.3, config: { name: '3 échecs d’affilée ?', position: [2160, 500], parameters: { conditions: { options: { caseSensitive: true, leftValue: '', typeValidation: 'loose', version: 2 }, conditions: [{ leftValue: expr("{{ $('Analyser la page').item.json.fail_next }}"), rightValue: 3, operator: { type: 'number', operation: 'equals' } }], combinator: 'and' } } } });
-const alerte = node({ type: 'n8n-nodes-base.discord', version: 2, config: { name: 'Alerter dans le channel', position: [2400, 450], credentials: ${discordCred}, parameters: { resource: 'message', operation: 'send', authentication: 'botToken', guildId: { __rl: true, mode: 'id', value: '<ID_SERVEUR_DISCORD>' }, sendTo: 'channel', channelId: { __rl: true, mode: 'id', value: expr("{{ $('Analyser la page').item.json.channel_id }}") }, content: expr("⚠️ Impossible de lire le prix Rebuy depuis 3 relevés ({{ $('Analyser la page').item.json.error }}). Le suivi continue, vérifie le lien si ça persiste.") } }, output: [{ id: '1' }] });`;
+const alerte = node({ type: 'n8n-nodes-base.discord', version: 2, config: { name: 'Alerter dans le channel', position: [2400, 450], credentials: ${discordCred}, parameters: { resource: 'message', operation: 'send', authentication: 'botToken', guildId: { __rl: true, mode: 'id', value: '${GUILD}' }, sendTo: 'channel', channelId: { __rl: true, mode: 'id', value: expr("{{ $('Analyser la page').item.json.channel_id }}") }, content: expr("⚠️ Impossible de lire le prix Rebuy depuis 3 relevés ({{ $('Analyser la page').item.json.error }}). Le suivi continue, vérifie le lien si ça persiste.") } }, output: [{ id: '1' }] });`;
 
 export function quotidien() {
   return `${IMPORT}
@@ -89,7 +98,6 @@ export default workflow('rebuy-quotidien', 'Rebuy – Relevé quotidien')
 }
 
 
-const GUILD = '<ID_SERVEUR_DISCORD>';
 const msgJson = (expression) => `expr(${s(`{{ JSON.stringify({ message: ${expression} }) }}`)})`;
 
 export function ajout() {
