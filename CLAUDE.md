@@ -8,7 +8,7 @@ Bot Discord + n8n qui suit les prix de reprise Rebuy (A0 neuf emballé, A1 comme
 npm install
 npm test                          # node test.mjs : diff, embed, parseRebuy (fixture synthétique)
 npm run spike -- "<lien rebuy>"   # lit un vrai lien : nom, image, prix A0-A2
-node n8n/workflows.mjs <nom>      # quotidien | ajout | liste | retirer | actualiser : affiche le code SDK n8n
+node --env-file=.env n8n/workflows.mjs <nom>      # quotidien | ajout | liste | retirer | actualiser : affiche le code SDK n8n
 node --check start.js             # vérification de syntaxe rapide
 ```
 
@@ -36,9 +36,9 @@ Pas de linter ni de build. Toujours lancer `npm test` après avoir touché `src/
 
 ## Travailler sur n8n (MCP)
 
-- Instance : `http://<instance-n8n>`, MCP sur `/mcp-server/http` (jeton Bearer **jamais** dans le repo, ni en clair dans les commits ou la mémoire). Le CLI `claude` n'est pas toujours dans le PATH : appeler le MCP en JSON-RPC avec `curl` (`Accept: application/json, text/event-stream`, réponse en SSE `data: …`).
+- Instance : URL dans `N8N_PUBLIC_URL` (`.env` local, jamais dans le repo), MCP sur `/mcp-server/http` (jeton Bearer **jamais** dans le repo, ni en clair dans les commits ou la mémoire). Le CLI `claude` n'est pas toujours dans le PATH : appeler le MCP en JSON-RPC avec `curl` (`Accept: application/json, text/event-stream`, réponse en SSE `data: …`).
 - Flux : modifier `n8n/workflows.mjs` ou `n8n/lib.mjs` → `validate_workflow` → `create_workflow_from_code` (nouveau) ou `update_workflow` (existant) → `publish_workflow`. Tester avec `test_workflow` (`pinData` obligatoire pour les nœuds externes) ; l'exécution est lisible via `get_workflow_execution` (`includeData: true`).
-- IDs : tables `rebuy_products` = `<ID_TABLE_PRODUITS>`, `rebuy_price_history` = `<ID_TABLE_HISTORIQUE>` ; credentials Discord Bot `<ID_CREDENTIAL_DISCORD>`.
+- IDs propres à l'instance (tables `rebuy_products` / `rebuy_price_history`, credential Discord Bot, guild) : jamais en dur, lus dans `.env` (`N8N_TABLE_PRODUITS`, `N8N_TABLE_HISTORIQUE`, `N8N_DISCORD_CRED_ID`, `DISCORD_GUILD_ID`, option `N8N_SECRET_CRED_ID`). Générer avec `node --env-file=.env n8n/workflows.mjs <nom>`.
 - Pour tester un relevé sans polluer : insérer une ligne `added_by = "test"` dans `rebuy_products`, lancer `test_workflow`, puis la supprimer.
 
 ## Secrets

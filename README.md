@@ -63,8 +63,9 @@ Le bot ne fait que recevoir les slash commands (n8n ne sait pas les recevoir) ; 
 4. **Credentials n8n** :
    - *Discord Bot API* (token, Application ID, Public Key) ;
    - *Header Auth* nommé `Rebuy Webhook Secret` : *Name* `X-Secret`, *Value* = `N8N_WEBHOOK_SECRET`.
-5. **Workflows** : créer les 5 workflows depuis [n8n/workflows.mjs](n8n/workflows.mjs) (via le MCP n8n), sélectionner le credential *Header Auth* dans les nœuds webhook, puis **publier** les workflows.
-6. **Redémarrer** : les slash commands sont enregistrées automatiquement, le bot se connecte.
+5. **Data Tables n8n** : créer `rebuy_products` (`url`, `name`, `product_id`, `channel_id`, `guild_id`, `added_by` : string ; `last_a0`, `last_a1`, `last_a2`, `fail_count` : number ; `active` : boolean) et `rebuy_price_history` (`product_id` : string ; `a0`, `a1`, `a2` : number). Reporter leurs IDs, celui du credential Discord et `DISCORD_GUILD_ID` dans `.env` (`N8N_TABLE_*`, `N8N_DISCORD_CRED_ID`).
+6. **Workflows** : créer les 5 workflows depuis [n8n/workflows.mjs](n8n/workflows.mjs) (`node --env-file=.env n8n/workflows.mjs <nom>`, via le MCP n8n), sélectionner le credential *Header Auth* dans les nœuds webhook, puis **publier** les workflows.
+7. **Redémarrer** : les slash commands sont enregistrées automatiquement, le bot se connecte.
 
 Détails, variables et dépannage : **[docs/exploitation.md](docs/exploitation.md)**.
 
