@@ -1,5 +1,5 @@
 // Génère le code SDK n8n des workflows. Usage : node n8n/workflows.mjs <nom>
-import { ANALYSE_QUOTIDIEN, VALIDER_AJOUT, ANALYSE_AJOUT, MESSAGE_LISTE, RESUME_ACTUALISATION, UA } from './lib.mjs';
+import { ANALYSE_QUOTIDIEN, VALIDER_AJOUT, ANALYSE_AJOUT, CHOISIR_CATEGORIE, RESOUDRE_CATEGORIE, MESSAGE_LISTE, RESUME_ACTUALISATION, UA } from './lib.mjs';
 
 // Identifiants propres à ton instance : jamais en dur, lus dans l'environnement.
 // Usage : node --env-file=.env n8n/workflows.mjs <nom>  (voir .env.example)
@@ -35,6 +35,9 @@ const httpPage = (name, urlExpr, pos) => `node({
   },
   output: [{ data: '<html></html>' }]
 })`;
+
+// Appel direct à l'API Discord avec le credential du bot (le nœud Discord n'expose pas la catégorie parente).
+const discordApi = (name, method, urlExpr, bodyExpr, pos, extra = '') => `node({ type: 'n8n-nodes-base.httpRequest', version: 4.5, config: { name: ${s(name)}, position: ${pos}, ${extra} credentials: ${discordCred}, parameters: { method: '${method}', url: ${urlExpr}, authentication: 'predefinedCredentialType', nodeCredentialType: 'discordBotApi'${bodyExpr ? `, sendBody: true, specifyBody: 'json', jsonBody: ${bodyExpr}` : ''}, options: { timeout: 20000 } } }, output: [{ id: '123' }] })`;
 
 const respond = (name, bodyExpr, pos) => `node({
   type: 'n8n-nodes-base.respondToWebhook', version: 1.5,
@@ -113,11 +116,16 @@ const page = ${httpPage('Lire la page Rebuy', "expr(\"{{ $('Valider la demande')
 const analyse = node({ type: 'n8n-nodes-base.code', version: 2, config: { name: 'Analyser la page', position: [1680, 100], parameters: { mode: 'runOnceForEachItem', language: 'javaScript', jsCode: ${s(ANALYSE_AJOUT)} } }, output: [{ ok: true, name: 'Produit', product_id: '1', image: 'https://img', a0: 1, a1: 1, a2: 1, embed: { title: 't', description: 'd', color: 1 }, channelName: 'produit', url: 'https://www.rebuy.fr/vendre/x', guildId: '1', userId: '3', error: 'x' }] });
 const pageLue = ${boolIf('Page lue ?', '{{ $json.ok }}', '[1920, 100]')};
 const repPageIllisible = ${respond('Répondre : page illisible', msgJson('"❌ Impossible de lire ce lien Rebuy : " + $json.error'), '[2160, 300]')};
-const creerChannel = node({ type: 'n8n-nodes-base.discord', version: 2, config: { name: 'Créer le channel', position: [2160, 0], credentials: ${discordCred}, parameters: { resource: 'channel', operation: 'create', authentication: 'botToken', guildId: { __rl: true, mode: 'id', value: expr("{{ $('Analyser la page').item.json.guildId }}") }, name: expr("{{ $('Analyser la page').item.json.channelName }}"), type: '0', options: { topic: expr("Prix de reprise Rebuy – {{ $('Analyser la page').item.json.name }}") } } }, output: [{ id: '123' }] });
-const poster = node({ type: 'n8n-nodes-base.discord', version: 2, config: { name: 'Poster le récap initial', position: [2400, 0], credentials: ${discordCred}, parameters: { resource: 'message', operation: 'send', authentication: 'botToken', guildId: { __rl: true, mode: 'id', value: expr("{{ $('Analyser la page').item.json.guildId }}") }, sendTo: 'channel', channelId: { __rl: true, mode: 'id', value: expr('{{ $json.id }}') }, content: '', embeds: { values: [{ inputMethod: 'json', json: expr("{{ JSON.stringify($('Analyser la page').item.json.embed) }}") }] } } }, output: [{ id: '1' }] });
-const enregistrer = node({ type: 'n8n-nodes-base.dataTable', version: 1.1, config: { name: 'Enregistrer le produit', position: [2640, 0], parameters: { resource: 'row', operation: 'insert', dataTableId: ${tbl(TABLE_PRODUITS)}, columns: ${cols("url: expr(\"{{ $('Analyser la page').item.json.url }}\"), name: expr(\"{{ $('Analyser la page').item.json.name }}\"), product_id: expr(\"{{ $('Analyser la page').item.json.product_id }}\"), channel_id: expr(\"{{ $('Créer le channel').item.json.id }}\"), guild_id: expr(\"{{ $('Analyser la page').item.json.guildId }}\"), added_by: expr(\"{{ $('Analyser la page').item.json.userId }}\"), last_a0: expr(\"{{ $('Analyser la page').item.json.a0 }}\"), last_a1: expr(\"{{ $('Analyser la page').item.json.a1 }}\"), last_a2: expr(\"{{ $('Analyser la page').item.json.a2 }}\"), fail_count: 0, active: true", PRODUCT_COLS)} } }, output: [{ id: 1 }] });
-const historique = node({ type: 'n8n-nodes-base.dataTable', version: 1.1, config: { name: 'Premier point d’historique', position: [2880, 0], parameters: { resource: 'row', operation: 'insert', dataTableId: ${tbl(TABLE_HISTORIQUE)}, columns: ${cols("product_id: expr(\"{{ $('Analyser la page').item.json.product_id }}\"), a0: expr(\"{{ $('Analyser la page').item.json.a0 }}\"), a1: expr(\"{{ $('Analyser la page').item.json.a1 }}\"), a2: expr(\"{{ $('Analyser la page').item.json.a2 }}\")", HIST_COLS)} } }, output: [{ id: 1 }] });
-const repOk = ${respond('Répondre : suivi créé', msgJson('"✅ Suivi créé : <#" + $("Créer le channel").item.json.id + ">"'), '[3120, 0]')};
+const salons = ${discordApi('Lister les salons', 'GET', "expr(\"https://discord.com/api/v10/guilds/{{ $('Analyser la page').item.json.guildId }}/channels\")", null, '[2160, 0]', 'alwaysOutputData: true, onError: \'continueRegularOutput\',')};
+const choisirCat = node({ type: 'n8n-nodes-base.code', version: 2, config: { name: 'Choisir la catégorie', position: [2400, 0], parameters: { mode: 'runOnceForAllItems', language: 'javaScript', jsCode: ${s(CHOISIR_CATEGORIE)} } }, output: [{ category: 'Tablettes', parentId: '1', needsCreate: false }] });
+const catAbsente = ${boolIf('Catégorie à créer ?', '{{ $json.needsCreate }}', '[2640, 0]')};
+const creerCat = ${discordApi('Créer la catégorie', 'POST', "expr(\"https://discord.com/api/v10/guilds/{{ $('Analyser la page').item.json.guildId }}/channels\")", "expr(\"{{ JSON.stringify({ name: $json.category, type: 4 }) }}\")", '[2880, -100]', 'onError: \'continueRegularOutput\',')};
+const resoudreCat = node({ type: 'n8n-nodes-base.code', version: 2, config: { name: 'Résoudre la catégorie', position: [3120, 0], parameters: { mode: 'runOnceForAllItems', language: 'javaScript', jsCode: ${s(RESOUDRE_CATEGORIE)} } }, output: [{ parentId: '1' }] });
+const creerChannel = ${discordApi('Créer le channel', 'POST', "expr(\"https://discord.com/api/v10/guilds/{{ $('Analyser la page').item.json.guildId }}/channels\")", "expr(\"{{ JSON.stringify({ name: $('Analyser la page').item.json.channelName, type: 0, topic: 'Prix de reprise Rebuy – ' + $('Analyser la page').item.json.name, parent_id: $json.parentId || undefined }) }}\")", '[3360, 0]')};
+const poster = node({ type: 'n8n-nodes-base.discord', version: 2, config: { name: 'Poster le récap initial', position: [3600, 0], credentials: ${discordCred}, parameters: { resource: 'message', operation: 'send', authentication: 'botToken', guildId: { __rl: true, mode: 'id', value: expr("{{ $('Analyser la page').item.json.guildId }}") }, sendTo: 'channel', channelId: { __rl: true, mode: 'id', value: expr('{{ $json.id }}') }, content: '', embeds: { values: [{ inputMethod: 'json', json: expr("{{ JSON.stringify($('Analyser la page').item.json.embed) }}") }] } } }, output: [{ id: '1' }] });
+const enregistrer = node({ type: 'n8n-nodes-base.dataTable', version: 1.1, config: { name: 'Enregistrer le produit', position: [3840, 0], parameters: { resource: 'row', operation: 'insert', dataTableId: ${tbl(TABLE_PRODUITS)}, columns: ${cols("url: expr(\"{{ $('Analyser la page').item.json.url }}\"), name: expr(\"{{ $('Analyser la page').item.json.name }}\"), product_id: expr(\"{{ $('Analyser la page').item.json.product_id }}\"), channel_id: expr(\"{{ $('Créer le channel').item.json.id }}\"), guild_id: expr(\"{{ $('Analyser la page').item.json.guildId }}\"), added_by: expr(\"{{ $('Analyser la page').item.json.userId }}\"), last_a0: expr(\"{{ $('Analyser la page').item.json.a0 }}\"), last_a1: expr(\"{{ $('Analyser la page').item.json.a1 }}\"), last_a2: expr(\"{{ $('Analyser la page').item.json.a2 }}\"), fail_count: 0, active: true", PRODUCT_COLS)} } }, output: [{ id: 1 }] });
+const historique = node({ type: 'n8n-nodes-base.dataTable', version: 1.1, config: { name: 'Premier point d’historique', position: [4080, 0], parameters: { resource: 'row', operation: 'insert', dataTableId: ${tbl(TABLE_HISTORIQUE)}, columns: ${cols("product_id: expr(\"{{ $('Analyser la page').item.json.product_id }}\"), a0: expr(\"{{ $('Analyser la page').item.json.a0 }}\"), a1: expr(\"{{ $('Analyser la page').item.json.a1 }}\"), a2: expr(\"{{ $('Analyser la page').item.json.a2 }}\")", HIST_COLS)} } }, output: [{ id: 1 }] });
+const repOk = ${respond('Répondre : suivi créé', msgJson('"✅ Suivi créé : <#" + $("Créer le channel").item.json.id + ">"'), '[4320, 0]')};
 
 export default workflow('rebuy-ajout', 'Rebuy – Ajouter un produit')
   .add(recu)
@@ -126,7 +134,9 @@ export default workflow('rebuy-ajout', 'Rebuy – Ajouter un produit')
     .onTrue(dejaSuivi.to(existe
       .onTrue(repDejaSuivi)
       .onFalse(page.to(analyse.to(pageLue
-        .onTrue(creerChannel.to(poster.to(enregistrer.to(historique.to(repOk)))))
+        .onTrue(salons.to(choisirCat.to(catAbsente
+          .onTrue(creerCat.to(resoudreCat.to(creerChannel.to(poster.to(enregistrer.to(historique.to(repOk)))))))
+          .onFalse(resoudreCat))))
         .onFalse(repPageIllisible))))))
     .onFalse(repLienInvalide));
 `;

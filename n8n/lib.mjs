@@ -20,7 +20,7 @@ function n8nEmbed(e) {
   return e;
 }`;
 
-export const LIB = `${strip(read('src/rebuy.js'))}\n${strip(read('src/embed.js'))}${N8N_EMBED}`;
+export const LIB = `${strip(read('src/rebuy.js'))}\n${strip(read('src/categories.js'))}\n${strip(read('src/embed.js'))}${N8N_EMBED}`;
 
 export const UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/124 Safari/537.36';
 
@@ -60,7 +60,7 @@ try {
   const embed = n8nEmbed(buildEmbed({ name, url: req.url, prices: p.prices, image: p.image }));
   const channelName = name.toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '')
     .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 90) || 'produit-rebuy';
-  return { json: { ok: true, name, product_id: String(p.id || ''), image: p.image, a0: p.prices.A0, a1: p.prices.A1, a2: p.prices.A2, embed, channelName, url: req.url, guildId: req.guildId, userId: req.userId } };
+  return { json: { ok: true, category: categoryFor(req.url), name, product_id: String(p.id || ''), image: p.image, a0: p.prices.A0, a1: p.prices.A1, a2: p.prices.A2, embed, channelName, url: req.url, guildId: req.guildId, userId: req.userId } };
 } catch (e) {
   return { json: { ok: false, error: String(e.message || e) } };
 }`;
@@ -75,3 +75,14 @@ return [{ json: { message: '**' + rows.length + ' produit(s) suivi(s)**', embeds
 export const RESUME_ACTUALISATION = `${LIB}
 const results = $input.all().map((i) => i.json);
 return [{ json: { message: '✅ Actualisation terminée (' + results.length + ' produit(s))', embeds: [buildRefreshEmbed(results)] } }];`;
+
+/** Cherche la catégorie Discord du produit parmi les salons du serveur (comparaison sans accents ni casse). */
+export const CHOISIR_CATEGORIE = `const norm = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').trim();
+const a = $('Analyser la page').first().json;
+const cat = a.category ? $input.all().map((i) => i.json).find((c) => c.type === 4 && norm(c.name) === norm(a.category)) : null;
+return [{ json: { category: a.category, parentId: cat ? String(cat.id) : null, needsCreate: !!a.category && !cat } }];`;
+
+/** Fusionne la catégorie existante ou tout juste créée en un parentId (null = pas de catégorie). */
+export const RESOUDRE_CATEGORIE = `const c = $('Choisir la catégorie').first().json;
+const cree = c.needsCreate && $input.first().json.id ? String($input.first().json.id) : null;
+return [{ json: { parentId: c.parentId || cree } }];`;

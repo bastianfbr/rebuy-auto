@@ -19,7 +19,7 @@
 
 | Commande | Effet |
 |---|---|
-| `/suivre lien:<url rebuy.fr/vendre/…>` | crée le channel du produit et démarre le suivi |
+| `/suivre lien:<url rebuy.fr/vendre/…>` | crée le channel du produit, le range dans la catégorie correspondant au lien (`/vendre/tablette/…` → « Tablettes », créée si absente) et démarre le suivi |
 | `/liste` | liste les produits suivis avec leurs derniers prix |
 | `/actualiser` | relève tout de suite tous les produits suivis et affiche un résumé (limité à un lancement par minute) |
 | `/arreter` | arrête le suivi (à lancer dans le channel du produit) |

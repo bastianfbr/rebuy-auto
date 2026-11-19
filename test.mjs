@@ -64,3 +64,10 @@ assert.equal(buildRefreshEmbed([{ name: 'A', channel_id: '1', status: 'same' }])
 const big = buildRefreshEmbed(Array.from({ length: 80 }, (_, k) => ({ name: 'Produit numéro ' + k, channel_id: '123456789012345678', status: 'changed' })));
 assert.ok(big.fields[0].value.length <= 1024 && /… et \d+ autres/.test(big.fields[0].value));
 console.log('✔ buildRefreshEmbed');
+
+const { categoryFor } = await import('./src/categories.js');
+assert.equal(categoryFor('https://www.rebuy.fr/vendre/tablette/xiaomi-pad-6s-pro_15402158'), 'Tablettes');
+assert.equal(categoryFor('https://www.rebuy.fr/vendre/consoles-et-accessoires/switch-2_1?x=1'), 'Consoles');
+assert.equal(categoryFor('https://www.rebuy.fr/vendre/jeux-video/zelda_9'), 'Jeux Video');
+assert.equal(categoryFor('https://www.rebuy.fr/vendre/apple'), null);
+console.log('✔ categoryFor');
