@@ -22,18 +22,23 @@ export function buildEmbed({ name, url, prices, oldPrices = null, image = null, 
   const down = rows.some((r) => r.delta < 0);
   const color = !oldPrices ? 0x5865f2 : up && down ? 0xf0a232 : up ? 0x2ecc71 : down ? 0xe74c3c : 0x95a5a6;
 
-  const lines = rows.map((r) => {
-    if (!oldPrices) return `**${r.label}** : ${fmt(r.cur)}`;
-    if (r.delta === 0) return `➖ ${r.label} : ${fmt(r.cur)} (inchangé)`;
-    const icon = r.delta > 0 ? '📈' : '📉';
-    const pct = `${sign(r.delta)}${Math.abs(r.pct).toFixed(1).replace('.', ',')} %`;
-    return `${icon} **${r.label} : ${fmt(r.cur)}** (${sign(r.delta)}${fmt(Math.abs(r.delta))}, ${pct}) — avant : ${fmt(r.prev)}`;
-  });
+  // Mise à jour : bloc ```ansi (couleurs Discord) comme sur la maquette : ▲ vert, ▼ rouge, — gris.
+  // Premier relevé : liste simple en gras.
+  const ESC = '\u001b[';
+  const SHORT = { A0: 'Neuf', A1: 'Comme neuf', A2: 'Très bon état' };
+  const ansiLine = (r) => {
+    const [icon, col] = r.delta > 0 ? ['▲', '32'] : r.delta < 0 ? ['▼', '31'] : ['—', '30'];
+    const d = r.delta === 0 ? '' : ` ${ESC}0;${col}m(${sign(r.delta)}${fmt(Math.abs(r.delta))})`;
+    return `${ESC}0;${col}m${icon} ${ESC}1;37m${SHORT[r.grade]} : ${fmt(r.cur)}${d}${ESC}0m`;
+  };
+  const body = oldPrices
+    ? `-# Prix de reprise mis à jour\n\`\`\`ansi\n${rows.map(ansiLine).join('\n')}\n\`\`\``
+    : `Suivi démarré — prix de reprise actuels\n\n${rows.map((r) => `**${r.label}** : ${fmt(r.cur)}`).join('\n')}`;
 
   const embed = {
-    title: `📱 ${name}`,
+    title: oldPrices ? name : `📱 ${name}`,
     url,
-    description: `${oldPrices ? 'Prix de reprise mis à jour' : 'Suivi démarré — prix de reprise actuels'}\n\n${lines.join('\n')}`,
+    description: body,
     color,
     footer: { text: `Relevé du ${date.toLocaleDateString('fr-FR')}` },
     timestamp: date.toISOString(),
